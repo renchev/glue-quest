@@ -1,0 +1,600 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>GLUE QUEST — PPI Stabiliser</title>
+<meta name="robots" content="noindex">
+<meta name="description" content="GLUE QUEST — an arcade visual metaphor for stabilising a protein–protein interaction with a molecular glue.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#04060f;--grid:#0d1430;--txt:#cfe6ff;--amber:#ffd36b;--green:#33d17a;--blue:#5aa9ff;
+    --pocket:#ff5d6c;--cab1:#2a2f45;--cab2:#141828;--edge:#0b0e1a;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+  html,body{margin:0;height:100%;}
+  body{
+    background:#ffffff;
+    display:flex;align-items:center;justify-content:center;min-height:100%;
+    font-family:'VT323',monospace;color:var(--txt);padding:16px;overflow:hidden;
+  }
+  .stage{width:520px;max-width:100%;}
+  .cabinet{position:relative;background:linear-gradient(var(--cab1),var(--cab2));
+    border:3px solid var(--edge);border-radius:22px;padding:16px 16px 14px;
+    box-shadow:0 18px 50px rgba(0,0,0,.55),inset 0 2px 0 rgba(255,255,255,.06),inset 0 -8px 24px rgba(0,0,0,.45);}
+  .marquee{text-align:center;font-family:'Press Start 2P',monospace;font-size:11px;line-height:1.5;
+    color:var(--amber);text-shadow:0 0 10px rgba(255,180,40,.7);letter-spacing:1px;margin:2px 0 10px;}
+  .marquee small{color:#9fb3d9;font-size:7px;text-shadow:none;display:block;margin-top:6px;letter-spacing:2px;}
+  .snd{position:absolute;top:7px;right:12px;z-index:5;width:30px;height:30px;border-radius:8px;
+    background:#1d2238;color:var(--amber);border:2px solid var(--edge);
+    font-family:'Press Start 2P',monospace;font-size:11px;line-height:1;cursor:pointer;
+    box-shadow:0 3px 0 #0b0e1a,0 0 10px rgba(255,200,60,.35);transition:transform .05s;}
+  .snd:active{transform:translateY(2px);box-shadow:0 1px 0 #0b0e1a;}
+  .snd.off{color:#54607f;text-decoration:line-through;box-shadow:0 3px 0 #0b0e1a;}
+  .screenwrap{position:relative;border:6px solid #05060c;border-radius:12px;background:#04060f;
+    box-shadow:inset 0 0 26px rgba(0,0,0,.9),0 0 0 2px #11152a;}
+  #ppi{display:block;width:100%;height:auto;image-rendering:pixelated;border-radius:5px;background:var(--bg);}
+  .hud{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;border-radius:5px;}
+  .scan{position:absolute;inset:0;pointer-events:none;border-radius:5px;
+    background:repeating-linear-gradient(transparent 0 2px,rgba(0,0,0,.20) 2px 3px);mix-blend-mode:multiply;}
+  .vig{position:absolute;inset:0;pointer-events:none;border-radius:5px;box-shadow:inset 0 0 70px rgba(0,0,0,.65);}
+  .glare{position:absolute;inset:0;pointer-events:none;border-radius:5px;
+    background:linear-gradient(115deg,rgba(255,255,255,.06) 0%,transparent 30%);}
+
+  .controls{display:flex;align-items:center;justify-content:space-between;margin-top:14px;gap:8px;}
+  .dpad{position:relative;width:120px;height:120px;flex:0 0 auto;}
+  .dpad .hub{position:absolute;left:42px;top:42px;width:36px;height:36px;background:#11152a;border-radius:7px;}
+  .db{position:absolute;background:#39406a;border-radius:7px;box-shadow:0 3px 0 #1a1f33;transition:all .06s;}
+  .db.up{left:42px;top:4px;width:36px;height:42px;}
+  .db.down{left:42px;top:74px;width:36px;height:42px;}
+  .db.left{left:4px;top:42px;width:42px;height:36px;}
+  .db.right{left:74px;top:42px;width:42px;height:36px;}
+  .db.on{background:var(--amber);box-shadow:0 0 14px rgba(255,200,60,.85),0 2px 0 #7a5a10;}
+
+  .center{flex:1;text-align:center;padding:0 4px;}
+  #status{font-family:'Press Start 2P',monospace;font-size:7px;line-height:1.7;color:#9fb3d9;min-height:30px;}
+  #status b{color:var(--amber);}
+  .mode{margin-top:8px;font-family:'Press Start 2P',monospace;font-size:7px;letter-spacing:1px;
+    background:#1d2238;color:var(--txt);border:2px solid var(--edge);border-radius:7px;padding:8px 9px;cursor:pointer;
+    box-shadow:0 3px 0 #0b0e1a;transition:transform .05s;}
+  .mode:active{transform:translateY(2px);box-shadow:0 1px 0 #0b0e1a;}
+
+  .fire{flex:0 0 auto;text-align:center;}
+  .fire .btn{width:66px;height:66px;border-radius:50%;cursor:pointer;
+    background:radial-gradient(circle at 34% 30%,#ff9a9a,#c62828 70%);border:3px solid #5a0d0d;
+    box-shadow:0 5px 0 #4a0a0a,inset 0 2px 4px rgba(255,255,255,.35);transition:all .05s;}
+  .fire .btn:active{transform:translateY(3px);box-shadow:0 2px 0 #4a0a0a;}
+  .fire .lab{font-family:'Press Start 2P',monospace;font-size:7px;color:#9fb3d9;margin-top:6px;letter-spacing:1px;}
+
+  .legend{display:flex;flex-wrap:wrap;gap:10px 14px;justify-content:center;margin-top:10px;font-size:15px;color:#8aa0c8;}
+  .legend span{display:inline-flex;align-items:center;gap:5px;}
+  .sw{width:11px;height:11px;border-radius:2px;display:inline-block;}
+  .hint{text-align:center;font-size:14px;color:#6a7fb0;margin-top:6px;letter-spacing:.5px;line-height:1.3;}
+
+  @media (max-width:560px){
+    body{padding:8px;align-items:flex-start;}
+    .stage{width:100%;}
+    .marquee{font-size:10px;}
+    .dpad{width:132px;height:132px;}
+    .fire .btn{width:74px;height:74px;}
+    #status{font-size:8px;}
+    .legend{display:none;}            /* phone: declutter — bodies are labelled on-canvas; hint carries the amber/red cue */
+    .hint{font-size:15px;margin-top:8px;}
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="cabinet">
+    <div class="marquee">★ GLUE QUEST ★<small>PROTEIN–PROTEIN INTERACTION · STABILISER</small></div>
+    <button class="snd off" id="snd" aria-label="toggle sound" title="sound on/off (off by default)">♪</button>
+    <div class="screenwrap">
+      <canvas id="ppi" width="480" height="320"></canvas>
+      <canvas id="hud" class="hud"></canvas>
+      <div class="scan"></div><div class="vig"></div><div class="glare"></div>
+    </div>
+    <div class="controls">
+      <div class="dpad" id="dpad">
+        <div class="hub"></div>
+        <div class="db up"    data-k="up"></div>
+        <div class="db down"  data-k="down"></div>
+        <div class="db left"  data-k="left"></div>
+        <div class="db right" data-k="right"></div>
+      </div>
+      <div class="center">
+        <div id="status">AUTO-DEMO<br><b>AI is driving…</b></div>
+        <button class="mode" id="mode">TAKE THE STICK ▸</button>
+      </div>
+      <div class="fire">
+        <div class="btn" id="fire"></div>
+        <div class="lab">DOCK</div>
+      </div>
+    </div>
+    <div class="legend">
+      <span><i class="sw" style="background:#33d17a"></i>E3 ligase</span>
+      <span><i class="sw" style="background:#5aa9ff"></i>target</span>
+      <span><i class="sw" style="background:#ffd36b"></i>glue</span>
+      <span><i class="sw" style="background:#ff5d6c"></i>complementary fit</span>
+    </div>
+    <div class="hint">Drag the amber <b>glue</b> into the red <b>fit</b> pocket the instant it opens.</div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const cv=document.getElementById('ppi'), x=cv.getContext('2d');
+  x.imageSmoothingEnabled=false;   // crisp nearest-neighbour blits for the rotated body sprites
+  // crisp text layer: a high-res overlay so HUD text isn't nearest-neighbour downscaled into mush
+  const hud=document.getElementById('hud'), xh=hud.getContext('2d');
+  function resizeHUD(){const r=cv.getBoundingClientRect(), dpr=Math.min(window.devicePixelRatio||1,3);
+    let w=Math.round((r.width||cv.width)*dpr); w=Math.max(cv.width*2,Math.min(cv.width*4,w));
+    hud.width=w; hud.height=Math.round(w*cv.height/cv.width);}
+  resizeHUD(); addEventListener('resize',resizeHUD);
+  const W=cv.width,H=cv.height,PX=4, lw=W/PX, lh=H/PX;   // 120 x 80 logical grid
+  const C={bg:'#04060f',grid:'#0d1430',a:'#33d17a',ad:'#1c7d49',b:'#5aa9ff',bd:'#27568f',
+           glue:'#ffd36b',glued:'#9a6c13',pocket:'#ff5d6c',white:'#eaf6ff',
+           meter:'#33d17a',meterbg:'#0e1d44',sub:'#7fa0d0'};
+  const round=Math.round,clamp=(v,a,b)=>v<a?a:v>b?b:v,dist=(p,q)=>Math.hypot(p.x-q.x,p.y-q.y);
+  function rect(lx,ly,c){x.fillStyle=c;x.fillRect(round(lx)*PX,round(ly)*PX,PX,PX);}
+
+  // E3 LIGASE — the LARGER body (~2:1 vs the target). A chunky asymmetric L: a tall left arm and a
+  // wide foot, with a carved right-face notch. Built on an integer grid, recentred on its centroid.
+  function gridCells(map){
+    const raw=[];
+    for(let r=0;r<map.length;r++)for(let c=0;c<map[r].length;c++) if(map[r][c]==='1') raw.push({x:c,y:r});
+    let sx=0,sy=0; raw.forEach(p=>{sx+=p.x;sy+=p.y;}); sx/=raw.length; sy/=raw.length;
+    return {cells:raw.map(p=>({x:p.x-sx, y:p.y-sy})), cx:sx, cy:sy};
+  }
+  const E3MAP=[
+    "1111000000000",  // top of the long arm
+    "1111110000000",  // -- upper lip of the carved right-face pocket
+    "1111110000000",
+    "1111000000000",  //    POCKET mouth (opens +x)
+    "1111000000000",
+    "1111000000000",
+    "1111110000000",  // -- lower lip
+    "1111110000000",
+    "1111000000000",  // inner CORNER sits just below here
+    "1111111111111",  // foot of the L (LEDGE = its top face)
+    "1111111111111",
+    "1111111111111",
+    "1111111111111"]; // heel; the underside is a weak transient EDGE
+  const e3g=gridCells(E3MAP);
+  function makeTarget(){
+    const cells=[]; const Rx=4.0, Ry=3.4;        // ~half the E3 footprint; rounder for 4 keyed sides
+    for(let gy=-4;gy<=4;gy++)for(let gx=-5;gx<=5;gx++){
+      const e=(gx/Rx)*(gx/Rx) + (gy/Ry)*(gy/Ry);
+      if(e<=1){ cells.push({x:gx,y:gy}); }
+    }
+    // four differently-jagged keys, one per side — each mates with a different E3 site
+    cells.push({x:5,y:-1},{x:5,y:0},{x:5,y:1},{x:6,y:0});                 // RIGHT  : 3-wide spear  -> CORNER
+    cells.push({x:0,y:-4},{x:1,y:-4},{x:1,y:-5});                          // TOP    : offset hook   -> POCKET
+    cells.push({x:-5,y:0},{x:-5,y:1},{x:-6,y:1});                          // LEFT   : stubby tooth  -> LEDGE
+    cells.push({x:-1,y:4},{x:0,y:4},{x:1,y:4},{x:0,y:5},{x:1,y:5});        // BOTTOM : broad ridge   -> EDGE
+    const seen={},out=[]; for(const c of cells){const k=c.x+','+c.y; if(!seen[k]){seen[k]=1;out.push(c);}}
+    return out;
+  }
+  function bodyInit(cells){let rad=0;cells.forEach(c=>{rad=Math.max(rad,Math.hypot(c.x,c.y));});return {cells,rad:rad+0.7};}
+  const E3 = bodyInit(e3g.cells);
+  const TG = bodyInit(makeTarget());
+
+  // The E3 offers several distinct complementary SITES — different nooks/faces of the L, each keyed
+  // in a different relative orientation, each with its own off-rate (k_off). The target presents four
+  // differently-jagged sides; each site mates with ONE of them (pair). The strong CORNER (k_off≈0)
+  // holds; weaker sites spontaneously break up.
+  // mx,my = local (centroid-relative) anchor; ang = the mouth's outward-normal angle; pair = target side.
+  const RAW_SITES=[
+    {name:'CORNER',rx:4.5,ry:7.5, ang:-0.79, koff:0.0,   stars:4, col:'#46e08a', ceil:1.00, sc:1.00, tag:'k_off~0', pair:0},
+    {name:'POCKET',rx:5.6,ry:4.0, ang: 0.00, koff:0.004, stars:3, col:'#a6e05a', ceil:0.85, sc:0.70, tag:'k_off lo', pair:1},
+    {name:'LEDGE', rx:9.5,ry:7.5, ang:-1.57, koff:0.012, stars:2, col:'#ffd36b', ceil:0.62, sc:0.45, tag:'k_off med',pair:2},
+    {name:'EDGE',  rx:9.5,ry:13.0,ang: 1.57, koff:0.028, stars:1, col:'#ff8a5d', ceil:0.42, sc:0.25, tag:'k_off HI', pair:3}];
+  const SITES=RAW_SITES.map(s=>Object.assign({},s,{mx:s.rx-e3g.cx, my:s.ry-e3g.cy}));
+
+  function worldCells(body,P){
+    const ca=Math.cos(P.a),sa=Math.sin(P.a),out=[];
+    for(const c of body.cells){ out.push({x:P.x+c.x*ca-c.y*sa, y:P.y+c.x*sa+c.y*ca}); }
+    return out;
+  }
+  // a site's world anchor + outward normal
+  function siteWorld(P,s){const ca=Math.cos(P.a),sa=Math.sin(P.a);
+    return {x:P.x+s.mx*ca-s.my*sa, y:P.y+s.mx*sa+s.my*ca, nx:Math.cos(P.a+s.ang), ny:Math.sin(P.a+s.ang)};}
+  // the target's four keyed sides (local frame): bx,by = the key tip, bn = its outward-normal angle.
+  // each pairs with one E3 site, so a genuine fit needs BOTH the right site AND the right side facing.
+  const TARGET_SIDES=[
+    {bx: 6.0, by: 0.0, bn: 0.0},          // RIGHT  -> CORNER
+    {bx: 0.8, by:-5.0, bn:-Math.PI/2},    // TOP    -> POCKET
+    {bx:-6.0, by: 1.0, bn: Math.PI},      // LEFT   -> LEDGE
+    {bx: 0.6, by: 5.0, bn: Math.PI/2}];   // BOTTOM -> EDGE
+  function sideWorld(P,sd){const ca=Math.cos(P.a),sa=Math.sin(P.a);
+    return {x:P.x+sd.bx*ca-sd.by*sa, y:P.y+sd.bx*sa+sd.by*ca, nx:Math.cos(P.a+sd.bn), ny:Math.sin(P.a+sd.bn)};}
+
+  let mode='auto';
+  const A={x:40,y:38,vx:.3,vy:.2,a:0.3,av:0.015, body:E3, fill:C.a, sh:C.ad};
+  const B={x:84,y:42,vx:-.3,vy:.25,a:2.2,av:-0.02, body:TG, fill:C.b, sh:C.bd};
+  const glue={x:lw/2,y:10,locked:false};
+  let score=0,level=1,affinity=8; const AFFMAX=100;
+  let fit=false, fitX=0,fitY=0, fitTtl=0, fitSite=null;
+  let locked=false,lockFlash=0,levelFlash=0,shake=0,demoT=0,paused=false,modeFlash=0,popFlash=0;
+  let lockSite=null,lockId=0,dwellLeft=0,dwellTotal=1,lockRel=null;
+  // AI-mode reinforcement-learning theatre: the agent starts naive, fumbles toward an unknown pocket,
+  // then REMEMBERS it — every later encounter with a learned pocket is an instant dock.
+  const learned=new Set();                 // pockets mastered (persists across level resets; cleared on page reload)
+  let exploreT=0, decoy={x:lw/2,y:lh/2}, learnFlash=0, lastLearned=null;
+  const AI_SEARCH=90;                       // frames of naive search before the agent stumbles into an unknown pocket
+  // SLOW = the deliberately gentle human pace; AUTO ramps far faster — that contrast is the point.
+  const SLOW=0.36;
+  function speedSF(){return mode==='manual'?SLOW:Math.min(2.6,1.45+(level-1)*0.18);}
+  function speedX(){return Math.max(1,Math.round(speedSF()/SLOW));}
+  const keys={};
+
+  // musicOn is the single master SOUND switch (music + SFX). OFF by default so the game runs silent
+  // and simple for open talks; the ♪ button opts the whole soundtrack in.
+  let actx=null, musicGain=null, musicOn=false, musicTimer=null, mStep=0, mNext=0;
+  const MUSIC_VOL=0.38;
+  function ensureAudio(){
+    if(!actx){try{actx=new(window.AudioContext||window.webkitAudioContext)();}catch(e){return null;}}
+    if(actx.state==='suspended')actx.resume();
+    if(!musicGain){musicGain=actx.createGain();musicGain.gain.value=musicOn?MUSIC_VOL:0.0001;musicGain.connect(actx.destination);}
+    return actx;
+  }
+  // SFX go straight to the destination (kept loud & dry); music is routed through musicGain so it can sit under them.
+  function tone(f,d,v,type){if(!musicOn)return;const c=ensureAudio();if(!c)return;try{const o=c.createOscillator(),g=c.createGain();o.type=type||'square';o.frequency.value=f;g.gain.value=v||.04;o.connect(g);g.connect(c.destination);const t=c.currentTime;o.start(t);g.gain.exponentialRampToValueAtTime(.0001,t+d);o.stop(t+d);}catch(e){}}
+  const bump=()=>tone(150,.045,.02);
+  const fitPing=()=>tone(660,.06,.03,'triangle');
+  function duck(){ if(!musicOn||!musicGain)return; const t=actx.currentTime;   // dip the music so win/fail SFX cut through
+    musicGain.gain.cancelScheduledValues(t); musicGain.gain.setValueAtTime(musicGain.gain.value,t);
+    musicGain.gain.linearRampToValueAtTime(MUSIC_VOL*0.22,t+0.04); musicGain.gain.linearRampToValueAtTime(MUSIC_VOL,t+0.55); }
+  function lockJingle(){duck();tone(523,.08,.05);setTimeout(()=>tone(784,.09,.05),85);setTimeout(()=>tone(1046,.18,.05),180);}
+
+  // ---- looping retro background chiptune: a 16-step Am–F–C–G loop, scheduled with a small lookahead ----
+  const _N={C2:65.41,F2:87.31,G2:98,A2:110,C3:130.81,D3:146.83,E3:164.81,
+            A3:220,C4:261.63,D4:293.66,E4:329.63,G4:392,A4:440};
+  const BASS=[_N.A2,_N.E3,_N.A2,_N.E3, _N.F2,_N.C3,_N.F2,_N.C3, _N.C2,_N.G2,_N.C2,_N.G2, _N.G2,_N.D3,_N.G2,_N.D3];
+  const LEAD=[_N.A4,0,_N.E4,0, _N.C4,0,_N.A4,0, _N.G4,0,_N.E4,0, _N.D4,0,_N.G4,0];
+  const MSTEP=0.26;                                   // eighth-note step ≈ 115 BPM → ~4.2s loop
+  function mNote(f,t,dur,type,vol){ if(!f||!musicGain)return; const o=actx.createOscillator(),g=actx.createGain();
+    o.type=type;o.frequency.setValueAtTime(f,t);o.connect(g);g.connect(musicGain);
+    g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+.012);
+    g.gain.exponentialRampToValueAtTime(.0001,t+dur); o.start(t);o.stop(t+dur+.03); }
+  function musicTick(){ if(!actx){musicTimer=null;return;} while(mNext<actx.currentTime+0.18){ const i=mStep%16;
+      mNote(BASS[i],mNext,MSTEP*0.92,'square',0.13);
+      mNote(LEAD[i],mNext,MSTEP*0.85,'triangle',0.10);
+      mStep++; mNext+=MSTEP; }
+    musicTimer=setTimeout(musicTick,60); }
+  function startMusic(){ if(!ensureAudio())return; if(musicTimer!==null)return; mNext=actx.currentTime+0.08; musicTick(); }
+  function stopMusic(){ if(musicTimer!==null){clearTimeout(musicTimer);musicTimer=null;} }
+  function startAudio(){ if(!ensureAudio())return; if(musicOn)startMusic(); }   // call on first user gesture (autoplay policy)
+  function toggleMusic(){ musicOn=!musicOn; const b=document.getElementById('snd');
+    if(musicOn){ if(ensureAudio()){const t=actx.currentTime;musicGain.gain.cancelScheduledValues(t);musicGain.gain.setValueAtTime(.0001,t);musicGain.gain.linearRampToValueAtTime(MUSIC_VOL,t+0.1);} startMusic(); if(b)b.classList.remove('off'); }
+    else{ if(musicGain){const t=actx.currentTime;musicGain.gain.cancelScheduledValues(t);musicGain.gain.setValueAtTime(musicGain.gain.value,t);musicGain.gain.linearRampToValueAtTime(.0001,t+0.12);} stopMusic(); if(b)b.classList.add('off'); } }
+
+  function reset(){locked=false;paused=false;glue.locked=false;fit=false;fitTtl=0;fitSite=null;lockSite=null;
+    glue.x=lw/2;glue.y=10;
+    A.x=40;A.y=38;A.a=.3;A.vx=.3;A.vy=.2;A.av=.015; B.x=84;B.y=42;B.a=2.2;B.vx=-.3;B.vy=.25;B.av=-.02; affinity=8;exploreT=0;}
+
+  function integrate(P){
+    // manual = gentle slow-mo (a human can chase the fit); auto = fast, ramps with level
+    const sf=speedSF();
+    P.vx+=(Math.random()-.5)*.5*sf; P.vy+=(Math.random()-.5)*.5*sf; P.av+=(Math.random()-.5)*.012*sf;
+    const vmax=0.4+0.5*sf, amax=0.04+0.04*sf;
+    P.vx=clamp(P.vx,-vmax,vmax); P.vy=clamp(P.vy,-vmax,vmax); P.av=clamp(P.av,-amax,amax);
+    P.x+=P.vx; P.y+=P.vy; P.a+=P.av;
+    const m=2;
+    if(P.x<P.body.rad+m){P.x=P.body.rad+m;P.vx=Math.abs(P.vx)*.7;}
+    if(P.x>lw-P.body.rad-m){P.x=lw-P.body.rad-m;P.vx=-Math.abs(P.vx)*.7;}
+    if(P.y<P.body.rad+m){P.y=P.body.rad+m;P.vy=Math.abs(P.vy)*.7;}
+    if(P.y>lh-P.body.rad-m){P.y=lh-P.body.rad-m;P.vy=-Math.abs(P.vy)*.7;}
+  }
+
+  function collide(P,Q){
+    const dx=Q.x-P.x, dy=Q.y-P.y, dc=Math.hypot(dx,dy)||1;
+    if(dc>P.body.rad+Q.body.rad) return false;
+    const pc=worldCells(P.body,P), qc=worldCells(Q.body,Q);
+    let best=1e9,bpx=0,bpy=0,bqx=0,bqy=0;
+    for(let i=0;i<pc.length;i+=2){const a=pc[i];
+      for(let j=0;j<qc.length;j+=2){const b=qc[j];const ddx=a.x-b.x,ddy=a.y-b.y,dd=ddx*ddx+ddy*ddy;
+        if(dd<best){best=dd;bpx=a.x;bpy=a.y;bqx=b.x;bqy=b.y;}}}
+    const d=Math.sqrt(best);
+    const touchDist=1.7;
+    if(d>touchDist) return false;
+    let nx=(bqx-bpx), ny=(bqy-bpy), nl=Math.hypot(nx,ny)||1; nx/=nl; ny/=nl;
+    const overlap=(touchDist-d);
+    P.x-=nx*overlap*0.5; P.y-=ny*overlap*0.5; Q.x+=nx*overlap*0.5; Q.y+=ny*overlap*0.5;
+    const rvx=Q.vx-P.vx, rvy=Q.vy-P.vy, vn=rvx*nx+rvy*ny;
+    if(vn<0){
+      const e=0.55, jimp=-(1+e)*vn/2;
+      P.vx-=jimp*nx; P.vy-=jimp*ny; Q.vx+=jimp*nx; Q.vy+=jimp*ny;
+      const tx=-ny, ty=nx, vt=rvx*tx+rvy*ty, fr=0.18*vt;
+      P.vx+=fr*tx; P.vy+=fr*ty; Q.vx-=fr*tx; Q.vy-=fr*ty;
+      const rpx=bpx-P.x, rpy=bpy-P.y; P.av += (rpx*ty-rpy*tx)*0.004;
+      const rqx=bqx-Q.x, rqy=bqy-Q.y; Q.av -= (rqx*ty-rqy*tx)*0.004;
+      P.av=clamp(P.av,-.1,.1); Q.av=clamp(Q.av,-.1,.1);
+    }
+    return true;
+  }
+
+  function checkFit(){
+    let bestd=1e9,best=null,fx=0,fy=0;
+    for(const s of SITES){
+      const m=siteWorld(A,s), bp=sideWorld(B,TARGET_SIDES[s.pair]);
+      const d=Math.hypot(m.x-bp.x, m.y-bp.y);
+      const facing=(m.nx*bp.nx + m.ny*bp.ny);          // site & its paired side must oppose -> genuine fit
+      if(d<5.5 && facing<-0.30 && d<bestd){ bestd=d; best=s; fx=(m.x+bp.x)/2; fy=(m.y+bp.y)/2; }
+    }
+    if(best){ fit=true; fitTtl=Math.max(fitTtl,16); fitX=fx; fitY=fy; fitSite=best; }
+  }
+
+  const starStr=s=>'★★★★'.slice(0,s.stars)+'·';
+  function dock(){
+    if(locked)return;
+    const s=fitSite||SITES[0];
+    const wasKnown = mode==='auto' && learned.has(s.name);          // recall vs first-time discovery
+    if(mode==='auto' && !learned.has(s.name)){ learned.add(s.name); learnFlash=72; lastLearned=s; }
+    const aiTag = mode==='auto' ? (wasKnown?'RECALL ✓ ':'LEARNED ✓ ') : '';
+    locked=true;glue.locked=true;fit=false;fitTtl=0;lockSite=s;lockId++;
+    const gain=Math.round(100*level*s.sc); score+=gain;
+    lockFlash=42;shake=6;lockJingle();
+    // capture the actual lock pose and recentre the complex (preserves which site keyed in)
+    const mx0=(A.x+B.x)/2,my0=(A.y+B.y)/2,cx=lw/2,cy=lh/2;
+    lockRel={ax:A.x-mx0+cx,ay:A.y-my0+cy,aa:A.a,bx:B.x-mx0+cx,by:B.y-my0+cy,ba:B.a,gx:fitX-mx0+cx,gy:fitY-my0+cy};
+    if(s.koff<=0){                                   // strongest site: stable ternary, holds
+      levelFlash=66;
+      if(mode==='manual'){paused=true;setStatus('STABILISED! '+starStr(s)+' +'+gain+'<br><b style="color:#46e08a">DOCK ▸ NEXT</b>');}
+      else{const id=lockId;setStatus(aiTag+'AI LOCKED '+s.name+' '+starStr(s)+'<br><b style="color:#46e08a">TERNARY · Kd DOWN</b>');
+        setTimeout(()=>{ if(mode!=='auto'||lockId!==id||!locked)return; level++; reset(); setStatus(autoMsg()); },2400);}
+    } else {                                         // weaker site: stochastic dwell, then breaks up
+      dwellTotal=clamp(Math.round(-Math.log(Math.random()+1e-3)/s.koff),40,300);
+      dwellLeft=dwellTotal;
+      setStatus(aiTag+'BOUND '+s.name+' '+starStr(s)+' +'+gain+'<br><b style="color:'+s.col+'">'+s.tag+' — transient ▸</b>');
+    }
+  }
+  function popComplex(){                              // a weak complex dissociates; play resumes
+    if(!lockSite)return; const s=lockSite;
+    locked=false;paused=false;glue.locked=false;popFlash=26;shake=4;
+    A.x=lockRel.ax;A.y=lockRel.ay;A.a=lockRel.aa;B.x=lockRel.bx;B.y=lockRel.by;B.a=lockRel.ba;
+    const dx=B.x-A.x,dy=B.y-A.y,dl=Math.hypot(dx,dy)||1;
+    A.vx=-dx/dl*0.6;A.vy=-dy/dl*0.6;B.vx=dx/dl*0.6;B.vy=dy/dl*0.6;
+    affinity=8;fit=false;fitTtl=0;fitSite=null;glue.x=lw/2;glue.y=10;lockSite=null;
+    duck();tone(180,.16,.05,'sawtooth');
+    setStatus('POPPED — '+s.name+' '+s.tag+'<br><b style="color:#ff8a5d">weak complex broke up</b>');
+  }
+  function continueNext(){
+    if(!paused)return; paused=false;locked=false;glue.locked=false;lockSite=null;level++;reset();
+    setStatus('FIND A FIT<br><b>then dock the glue ▸</b>');
+  }
+
+  function step(){
+    if(locked){
+      // bound ternary complex: hold the captured pose centred, with a gentle rigid wobble
+      const t=Date.now()*.0035, ox=Math.sin(t)*.4, oy=Math.cos(t*1.1)*.4;
+      A.x=lockRel.ax+ox;A.y=lockRel.ay+oy;A.a=lockRel.aa;
+      B.x=lockRel.bx+ox;B.y=lockRel.by+oy;B.a=lockRel.ba;
+      glue.x=lockRel.gx+ox;glue.y=lockRel.gy+oy;
+      if(!lockSite||lockSite.koff<=0){ if(affinity<AFFMAX)affinity+=2; if(affinity>AFFMAX)affinity=AFFMAX; }
+      else{                                   // off-rate: affinity rises then decays over the dwell
+        dwellLeft--;
+        const tgt=lockSite.ceil*AFFMAX*(dwellLeft/dwellTotal);
+        affinity+=(tgt-affinity)*0.18; if(affinity<0)affinity=0;
+        if(dwellLeft<=0) popComplex();
+      }
+      if(lockFlash>0)lockFlash--; if(levelFlash>0)levelFlash--; if(shake>0)shake--; if(popFlash>0)popFlash--; if(modeFlash>0)modeFlash--; if(learnFlash>0)learnFlash--;
+      return;
+    }
+    integrate(A); integrate(B);
+    const dx=B.x-A.x,dy=B.y-A.y,dd=Math.hypot(dx,dy)||1;
+    if(dd>16){A.vx+=dx/dd*.04;A.vy+=dy/dd*.04;B.vx-=dx/dd*.04;B.vy-=dy/dd*.04;}
+
+    // ----- binding funnel: in an encounter, steer toward the NEAREST accessible site's pose.
+    // Rotates A so that site's mouth faces B, and B so its nub faces A. Still LOCKS only on a
+    // genuine geometric fit (checkFit) — the funnel just makes fits frequent and watchable. -----
+    if(dd<38){
+      const baseAng=Math.atan2(dy,dx);                  // A -> B
+      let best=SITES[0],bestErr=1e9;
+      for(const s of SITES){const want=baseAng-s.ang;const e=Math.abs(((want-A.a+Math.PI*3)%(Math.PI*2))-Math.PI)-(s.stars-1)*0.22-(mode==='auto'&&!learned.has(s.name)?0.6:0);if(e<bestErr){bestErr=e;best=s;}}
+      const sd=TARGET_SIDES[best.pair];
+      const wantA=baseAng-best.ang;                     // A: this site's mouth faces B
+      const wantB=(baseAng+Math.PI)-sd.bn;              // B: the PAIRED side faces A
+      let da=((wantA-A.a+Math.PI*3)%(Math.PI*2))-Math.PI; A.av += clamp(da,-1,1)*0.02;
+      let db=((wantB-B.a+Math.PI*3)%(Math.PI*2))-Math.PI; B.av += clamp(db,-1,1)*0.02;
+      A.av*=0.92; B.av*=0.92;
+    }
+
+    const hit=collide(A,B); if(hit && Math.random()<0.25) bump();
+    const wasFit=fit; if(fitTtl>0)fitTtl--; if(fitTtl===0){fit=false;fitSite=null;}
+    checkFit();
+    if(fit&&!wasFit) fitPing();
+    // while a genuine fit is open, calm the bodies so the pose persists long enough to dock
+    if(fit){A.vx*=.6;A.vy*=.6;A.av*=.5;B.vx*=.6;B.vy*=.6;B.av*=.5;}
+    if(mode==='manual'){
+      const sp=1.4;
+      if(keys.up)glue.y-=sp; if(keys.down)glue.y+=sp; if(keys.left)glue.x-=sp; if(keys.right)glue.x+=sp;
+      glue.x=clamp(glue.x,5,lw-5); glue.y=clamp(glue.y,5,lh-5);
+      if(fit&&dist(glue,{x:fitX,y:fitY})<5&&keys.fire)dock();
+      if(fit&&dist(glue,{x:fitX,y:fitY})<2.6)dock();
+    } else {                                            // ----- AI agent -----
+      demoT++;
+      if(fit){
+        if(learned.has(fitSite.name)){                  // RECALL: a known pocket — snap straight in, instant dock
+          glue.x+=(fitX-glue.x)*.5; glue.y+=(fitY-glue.y)*.5;
+          if(dist(glue,{x:fitX,y:fitY})<3.6)dock();
+        } else {                                         // NAIVE: never seen this pocket — slow, obviously-wrong guesses…
+          exploreT++;
+          if(exploreT<AI_SEARCH){
+            if(exploreT%22===1){decoy={x:8+Math.random()*(lw-16), y:8+Math.random()*(lh-16)};}  // a fresh wrong guess
+            glue.x+=(decoy.x-glue.x)*.06; glue.y+=(decoy.y-glue.y)*.06;                          // wander (far slower than recall)
+          } else {                                       // …until it finally stumbles onto the pocket and docks
+            glue.x+=(fitX-glue.x)*.28; glue.y+=(fitY-glue.y)*.28;
+            if(dist(glue,{x:fitX,y:fitY})<3.6)dock();
+          }
+        }
+      } else {exploreT=0; glue.y=18+Math.sin(demoT*.06)*3; glue.x=lw/2+Math.sin(demoT*.03)*16;}  // idle below the AI MEMORY panel
+    }
+    if(lockFlash>0)lockFlash--; if(levelFlash>0)levelFlash--; if(shake>0)shake--; if(popFlash>0)popFlash--; if(modeFlash>0)modeFlash--; if(learnFlash>0)learnFlash--;
+  }
+
+  const GLUE=["0010","0111","1111","0111","0010"];
+  function glueSprite(cx,cy,f,s){for(let r=0;r<5;r++)for(let c=0;c<4;c++) if(GLUE[r][c]==='1') rect(cx-2+c,cy-2+r,(r===0||r===4||c===0)?s:f);}
+  // Pre-render each body ONCE at a=0 into an offscreen sprite (its constant view), then rotate the
+  // whole sprite as a rigid unit. This stops the per-cell rounding "boil"/gaps during tumbling.
+  function makeSprite(P){
+    const cells=P.body.cells, r=P.body.rad; let minx=1e9,miny=1e9,maxx=-1e9,maxy=-1e9;
+    for(const c of cells){const ix=Math.round(c.x),iy=Math.round(c.y);
+      if(ix<minx)minx=ix; if(iy<miny)miny=iy; if(ix>maxx)maxx=ix; if(iy>maxy)maxy=iy;}
+    minx-=1;miny-=1;maxx+=1;maxy+=1;
+    const cn=document.createElement('canvas'); cn.width=(maxx-minx+1)*PX; cn.height=(maxy-miny+1)*PX;
+    const g=cn.getContext('2d');
+    for(const c of cells){const ix=Math.round(c.x),iy=Math.round(c.y), edge=(Math.hypot(c.x,c.y)>r-2.2);
+      g.fillStyle=edge?P.sh:P.fill; g.fillRect((ix-minx)*PX,(iy-miny)*PX,PX,PX);}
+    return {canvas:cn, minx, miny};
+  }
+  function drawBody(P){
+    if(!P._spr)P._spr=makeSprite(P);
+    const s=P._spr;
+    x.save();
+    x.translate(round(P.x*PX),round(P.y*PX)); x.rotate(P.a);
+    x.drawImage(s.canvas, s.minx*PX, s.miny*PX);
+    x.restore();
+  }
+  function draw(){
+    const ox=shake>0?(Math.random()-.5)*shake:0, oy=shake>0?(Math.random()-.5)*shake:0;
+    x.save();x.translate(ox,oy);
+    // mirror the transform onto the crisp text overlay (same 480x320 coord space, higher backing res)
+    xh.setTransform(1,0,0,1,0,0); xh.clearRect(0,0,hud.width,hud.height);
+    xh.setTransform(hud.width/W,0,0,hud.height/H,0,0); xh.save(); xh.translate(ox,oy);
+    x.fillStyle=C.bg;x.fillRect(-8,-8,W+16,H+16);
+    x.strokeStyle=C.grid;x.lineWidth=1;
+    for(let gx=0;gx<=W;gx+=PX*6){x.beginPath();x.moveTo(gx,0);x.lineTo(gx,H);x.stroke();}
+    for(let gy=0;gy<=H;gy+=PX*6){x.beginPath();x.moveTo(0,gy);x.lineTo(W,gy);x.stroke();}
+
+    if(fit&&fitSite){
+      const col=fitSite.col, pulse=(Date.now()*0.02|0)%2===0;
+      rect(fitX-1,fitY-1,pulse?col:C.white); rect(fitX,fitY-1,pulse?col:C.white);
+      rect(fitX-1,fitY,pulse?col:C.white); rect(fitX,fitY,pulse?col:C.white);
+      rect(fitX-4,fitY-1,C.white); rect(fitX+4,fitY,C.white);
+      xh.font='15px "VT323",monospace';
+      // park the site + stars + k_off readout in whichever top corner is freer (away from the bodies),
+      // so it stays legible instead of clipping at the field edge near the fit point
+      const midX=(A.x+B.x)/2, onLeft=midX<lw/2;
+      const tx=onLeft?W-6:6; xh.textAlign=onLeft?'right':'left';
+      xh.fillStyle=col; xh.fillText(fitSite.name+'  '+starStr(fitSite), tx, 33);
+      xh.fillText(fitSite.tag, tx, 47); xh.textAlign='left';
+    }
+
+    drawBody(A); drawBody(B);
+    glueSprite(glue.x,glue.y, glue.locked?C.glued:C.glue, C.glued);
+    if(mode==='manual'&&fit){x.strokeStyle='rgba(255,211,107,.5)';x.beginPath();x.moveTo(glue.x*PX+2,glue.y*PX+2);x.lineTo(fitX*PX+2,fitY*PX+2);x.stroke();}
+
+    xh.font='8px "Press Start 2P",monospace';
+    // body labels ride each body's OUTER periphery — pushed away from the other body so 'E3' never lands on the target
+    xh.textAlign='center';
+    const periph=(P,oth,txt,col)=>{let dx=P.x-oth.x,dy=P.y-oth.y;const dl=Math.hypot(dx,dy)||1;
+      let lx=(P.x+dx/dl*(P.body.rad+4.5))*PX, ly=(P.y+dy/dl*(P.body.rad+4.5))*PX+3;
+      const hw=xh.measureText(txt).width/2+4; lx=clamp(lx,hw,W-hw); ly=clamp(ly,26,H-34);
+      xh.fillStyle=col; xh.fillText(txt,lx,ly);};
+    periph(A,B,'E3',C.a); periph(B,A,'TARGET',C.b);
+    if(!locked){xh.fillStyle=C.glue;xh.fillText('GLUE',clamp(glue.x*PX,16,W-16),clamp(glue.y*PX-9,12,H-6));}
+    xh.textAlign='left';
+
+    xh.fillStyle=C.white;xh.fillText('SCORE '+String(score).padStart(5,'0'),8,16);
+    xh.fillText('LVL '+level,W-58,16);
+    // mode + speed contrast — the narrative beat: human slow, AI superhuman-fast
+    xh.textAlign='center';xh.fillStyle=mode==='manual'?C.sub:C.glue;
+    xh.fillText(mode==='manual'?'YOU 1x':'AI '+speedX()+'x',W/2,16);xh.textAlign='left';
+
+    if(mode==='auto'){                                  // AI memory: one pip per pocket, lit in its colour once mastered
+      xh.font='12px "VT323",monospace'; xh.textAlign='left';
+      const lab='AI MEMORY', lwd=xh.measureText(lab).width, pw=13, gp=5, n=SITES.length;
+      const grp=lwd+8+n*(pw+gp)-gp, gx0=(W-grp)/2, gy=31, ty=gy-10;
+      xh.fillStyle='#7fa0d0'; xh.fillText(lab, gx0, gy);
+      const px0=gx0+lwd+8;
+      SITES.forEach((s,i)=>{ const lx=px0+i*(pw+gp);
+        if(learned.has(s.name)){ xh.fillStyle=s.col; xh.fillRect(lx,ty,pw,11); }
+        else { xh.strokeStyle='#46507a'; xh.lineWidth=1; xh.strokeRect(lx+.5,ty+.5,pw-1,10); } });
+    }
+
+    // affinity meter: bar on the pixel layer, labels on the crisp layer (VT323 reads better small)
+    const mw=120,fl=round(mw*affinity/AFFMAX);
+    x.fillStyle=C.meterbg;x.fillRect(78,H-29,mw,10);
+    const barCol=locked&&lockSite?lockSite.col:(affinity>=AFFMAX?C.glue:C.meter);
+    x.fillStyle=barCol;x.fillRect(78,H-29,fl,10);
+    x.strokeStyle='#0b1430';x.strokeRect(78,H-29,mw,10);
+    xh.font='15px "VT323",monospace';
+    xh.fillStyle=C.white;xh.fillText('AFFINITY',8,H-19);
+    let alab,acol;
+    if(locked&&lockSite){alab=lockSite.koff<=0?'Kd DOWN — STABLE':lockSite.name+' '+lockSite.tag;acol=lockSite.col;}
+    else{alab=affinity>=AFFMAX?'Kd DOWN — STABLE':'weak / transient';acol=affinity>=AFFMAX?C.glue:C.sub;}
+    xh.fillStyle=acol;xh.fillText(alab,206,H-19);
+
+    if(levelFlash>0&&levelFlash%8<5){
+      x.fillStyle='rgba(70,224,138,.16)';x.fillRect(0,0,W,H);
+      xh.fillStyle='#46e08a';xh.font='16px "Press Start 2P",monospace';xh.textAlign='center';
+      xh.fillText('STABILISED!',W/2,H/2-46);xh.textAlign='left';
+    }
+    if(popFlash>0){
+      x.fillStyle='rgba(255,138,93,.14)';x.fillRect(0,0,W,H);
+      if(popFlash%8<5){xh.fillStyle='#ff8a5d';xh.font='13px "Press Start 2P",monospace';xh.textAlign='center';xh.fillText('POP! k_off',W/2,H/2-46);xh.textAlign='left';}
+    }
+    if(learnFlash>0&&lastLearned){                      // first-time discovery: the agent just committed a pocket to memory
+      if(learnFlash%8<6){
+        xh.textAlign='center';
+        xh.fillStyle=lastLearned.col;xh.font='15px "Press Start 2P",monospace';
+        xh.fillText('POCKET LEARNED',W/2,H/2+30);
+        xh.font='10px "Press Start 2P",monospace';
+        xh.fillText(lastLearned.name+'  '+learned.size+'/'+SITES.length+' IN MEMORY',W/2,H/2+48);
+        xh.textAlign='left';
+      }
+    }
+    if(modeFlash>0){
+      x.fillStyle='rgba(0,0,0,.5)';x.fillRect(0,H/2-20,W,30);
+      xh.fillStyle=mode==='manual'?C.sub:C.glue;xh.font='9px "Press Start 2P",monospace';xh.textAlign='center';
+      xh.fillText(mode==='manual'?'YOU DRIVE — SLOW-MO':'AI SEARCH ~'+speedX()+'x FASTER',W/2,H/2);xh.textAlign='left';
+    }
+    x.restore(); xh.restore();
+  }
+
+  function paintControls(){
+    document.querySelectorAll('.db').forEach(el=>el.classList.toggle('on',!!keys[el.dataset.k]));
+    document.getElementById('fire').style.filter=keys.fire?'brightness(1.45)':'none';
+  }
+  function frame(){step();draw();paintControls();requestAnimationFrame(frame);}
+  if(/[?#]dbg/.test(location.href)){ // inert dev harness: enable only via #dbg (used to drive frames headlessly)
+    window.__step=n=>{n=n||1;while(n-->0)step();};
+    window.__peek=()=>({fit,fitSite:fitSite&&fitSite.name,locked,lockSite:lockSite&&lockSite.name,dwellLeft,dwellTotal,aff:Math.round(affinity),score,level,mode,learned:[...learned],exploreT});
+    window.__setmode=m=>{mode=m;}; window.__reset=()=>{level++;reset();};
+    window.__music=()=>{startMusic();return {musicOn,running:musicTimer!==null,mStep,actx:actx&&actx.state,t:actx&&actx.currentTime};};
+    window.__toggle=()=>{toggleMusic();return {musicOn,running:musicTimer!==null};};
+  }
+  frame();
+  setStatus(autoMsg());
+
+  function setStatus(h){document.getElementById('status').innerHTML=h;}
+  function autoMsg(){const k=learned.size,n=SITES.length;
+    if(k===0)   return 'AI EXPLORING<br><b>no memory yet — fumbling ▸</b>';
+    if(k<n)     return 'AI LEARNING · '+k+'/'+n+'<br><b>recalls what it has seen ▸</b>';
+    return 'AI TRAINED · '+n+'/'+n+'<br><b>every pocket = instant ▸</b>';}
+  function toManual(){mode='manual';modeFlash=120;document.getElementById('mode').textContent='◂ BACK TO AI';setStatus('YOU DRIVE (slow-mo)<br><b>chase the fit · then DOCK</b>');}
+  function toAuto(){mode='auto';modeFlash=120;document.getElementById('mode').textContent='TAKE THE STICK ▸';setStatus(autoMsg());}
+  function key(code,v){if(code==='ArrowUp'||code==='KeyW')keys.up=v;else if(code==='ArrowDown'||code==='KeyS')keys.down=v;else if(code==='ArrowLeft'||code==='KeyA')keys.left=v;else if(code==='ArrowRight'||code==='KeyD')keys.right=v;else if(code==='Space')keys.fire=v;}
+  addEventListener('keydown',e=>{const cs=['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','KeyW','KeyA','KeyS','KeyD'];if(cs.includes(e.code)){startAudio();if(e.code==='Space'&&paused){continueNext();e.preventDefault();return;}if(mode==='auto')toManual();key(e.code,true);e.preventDefault();}});
+  addEventListener('keyup',e=>key(e.code,false));
+
+  let drag=false;
+  function pos(ev){const r=cv.getBoundingClientRect();const px_=(ev.touches?ev.touches[0].clientX:ev.clientX)-r.left;const py=(ev.touches?ev.touches[0].clientY:ev.clientY)-r.top;return{x:px_/r.width*lw,y:py/r.height*lh};}
+  cv.addEventListener('pointerdown',e=>{startAudio();if(mode==='auto')toManual();drag=true;const p=pos(e);glue.x=clamp(p.x,5,lw-5);glue.y=clamp(p.y,5,lh-5);});
+  cv.addEventListener('pointermove',e=>{if(drag){const p=pos(e);glue.x=clamp(p.x,5,lw-5);glue.y=clamp(p.y,5,lh-5);e.preventDefault();}},{passive:false});
+  addEventListener('pointerup',()=>drag=false);
+
+  document.querySelectorAll('.db').forEach(el=>{const k=el.dataset.k;
+    el.addEventListener('pointerdown',ev=>{ev.preventDefault();if(mode==='auto')toManual();keys[k]=true;});
+    el.addEventListener('pointerup',()=>keys[k]=false); el.addEventListener('pointerleave',()=>keys[k]=false);});
+  const f=document.getElementById('fire');
+  f.addEventListener('pointerdown',ev=>{ev.preventDefault();startAudio();if(paused){continueNext();return;}keys.fire=true;if(fit&&dist(glue,{x:fitX,y:fitY})<6)dock();});
+  f.addEventListener('pointerup',()=>keys.fire=false);
+  document.getElementById('mode').addEventListener('click',()=>{startAudio();mode==='auto'?toManual():toAuto();});
+  document.getElementById('snd').addEventListener('click',ev=>{ev.preventDefault();toggleMusic();});
+})();
+</script>
+</body>
+</html>
