@@ -89,7 +89,7 @@
 <div class="stage">
   <div class="cabinet">
     <div class="marquee">★ GLUE QUEST ★<small>PROTEIN–PROTEIN INTERACTION · STABILISER</small></div>
-    <button class="snd off" id="snd" aria-label="toggle sound" title="sound on/off (off by default)">♪</button>
+    <button class="snd" id="snd" aria-label="toggle sound" title="sound on/off">♪</button>
     <div class="screenwrap">
       <canvas id="ppi" width="480" height="320"></canvas>
       <canvas id="hud" class="hud"></canvas>
@@ -229,9 +229,9 @@
   function speedX(){return Math.max(1,Math.round(speedSF()/SLOW));}
   const keys={};
 
-  // musicOn is the single master SOUND switch (music + SFX). OFF by default so the game runs silent
-  // and simple for open talks; the ♪ button opts the whole soundtrack in.
-  let actx=null, musicGain=null, musicOn=false, musicTimer=null, mStep=0, mNext=0;
+  // musicOn is the single master SOUND switch (music + SFX). ON by default — sound kicks in on the
+  // first user gesture (browser autoplay rule); the ♪ button mutes everything. (Flip to false for a silent default.)
+  let actx=null, musicGain=null, musicOn=true, musicTimer=null, mStep=0, mNext=0;
   const MUSIC_VOL=0.38;
   function ensureAudio(){
     if(!actx){try{actx=new(window.AudioContext||window.webkitAudioContext)();}catch(e){return null;}}
